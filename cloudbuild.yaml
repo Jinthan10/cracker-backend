@@ -1,8 +1,37 @@
+#steps:
+#  - name: 'gcr.io/cloud-builders/docker'
+#    args: ['build', '-t', 'gcr.io/$PROJECT_ID/backend:latest', '.']
+#
+#images:
+#  - 'gcr.io/$PROJECT_ID/backend:latest'
+#options:
+#  logging: CLOUD_LOGGING_ONLY  
 steps:
+  # Step 1: Build Docker image for backend
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/backend:latest', '.']
 
+  # Step 2: Push image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/backend:latest']
+
+  # Step 3: Deploy to Cloud Run and connect to Cloud SQL
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - backend
+      - --image=gcr.io/$PROJECT_ID/backend:latest
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --add-cloudsql-instances=PROJECT_ID:REGION:INSTANCE_ID
+      - --set-env-vars=INSTANCE_CONNECTION_NAME=PROJECT_ID:REGION:INSTANCE_ID,DB_USER=youruser,DB_PASS=yourpass,DB_NAME=yourdbname
+
 images:
   - 'gcr.io/$PROJECT_ID/backend:latest'
+
 options:
-  logging: CLOUD_LOGGING_ONLY  
+  logging: CLOUD_LOGGING_ONLY
+
