@@ -23,14 +23,11 @@ steps:
       - --platform=managed
       - --region=us-central1
       - --allow-unauthenticated
-      - --add-cloudsql-instances=mydb::us-central1:mydb
-      - --set-env-vars=PORT=8080,DB_USER=ganesh,DB_PASS=ganesh,DB_NAME=demo
+      - --add-cloudsql-instances=devel:us-central1:devel
+      - --set-env-vars=PORT=8080,DB_USER=mysq,DB_PASS=mysq,DB_NAME=mysql
 
 images:
   - 'gcr.io/$PROJECT_ID/backend:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
-
-
-
