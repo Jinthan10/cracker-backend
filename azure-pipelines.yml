@@ -1,41 +1,54 @@
 trigger:
-- master
+- main   # trigger when YAML is updated in main branch
 
 pool:
-  name: Default   # Windows self-hosted agent pool
+  name: Default  # your Windows self-hosted agent pool
 
 variables:
-  ACR_NAME: 'backendapli'
-  IMAGE_NAME: 'backendapp'
-  TAG: 'latest'
+  ACR_NAME: 'backendapli'      # Azure Container Registry name
+  IMAGE_NAME: 'backendapp'     # Docker image name
+  TAG: 'latest'                # Docker tag
+
+# Use resources to pull master branch code
+resources:
+  repositories:
+    - repository: self
+      type: git
+      name: $(Build.Repository.Name)   # same repo as YAML
+      ref: refs/heads/master           # fetch master branch
 
 stages:
 - stage: Build
   displayName: 'Build & Push Docker Image'
   jobs:
   - job: BuildJob
-    displayName: 'Build and Push'
+    displayName: 'Build and Push Docker Image'
     steps:
+
+    # Step 0 — Checkout master branch code
+    - checkout: self
+      clean: true
+      persistCredentials: true
 
     # Step 1 — Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip'
+        azureSubscription: 'mypip'  # Azure subscription service connection
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
           Write-Host "Checking Azure account..."
           az account show
 
-    # Step 2 — Build & Push Docker Image
+    # Step 2 — Build & Push Docker Image to ACR
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'
+        containerRegistry: 'mypip1'                  # Docker/ACR service connection
         repository: $(ACR_NAME).azurecr.io/$(IMAGE_NAME)
         command: buildAndPush
-        dockerfile: cracker-backend/Dockerfile
+        dockerfile: cracker-backend/Dockerfile       # Dockerfile relative path
         buildContext: cracker-backend
         tags: |
           $(TAG)
