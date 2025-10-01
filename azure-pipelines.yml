@@ -2,7 +2,7 @@ trigger:
 - master   # Your source code branch
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: Default
 
 variables:
   ACR_NAME: 'backendapli'              # Your ACR name
