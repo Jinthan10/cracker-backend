@@ -2,7 +2,7 @@ trigger:
 - master   # Your source code branch
 
 pool:
-  vmImage: Default
+  vmImage: testing
 
 variables:
   ACR_NAME: 'backendapli'              # Your ACR name
