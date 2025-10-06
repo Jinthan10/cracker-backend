@@ -1,15 +1,20 @@
 trigger:
-- main   # still trigger when YAML changes in main
+- main   # still trigger when YAML changes in main branch
 
 pool:
-  name: Default  # self-hosted agent pool
+  name: Default  # your self-hosted agent name (replace if needed)
 
 variables:
-  ACR_NAME: 'backendapli'      # Your ACR name
+  ACR_NAME: 'backendapli'          # your ACR name
   IMAGE_NAME: 'backendapp'
   TAG: 'latest'
+  RESOURCE_GROUP: 'myResourceGroup' # replace with your Azure RG
+  CONTAINER_NAME: 'backend-container'
 
 stages:
+# ===========================================================
+# Stage 1 — Build and Push Docker Image
+# ===========================================================
 - stage: Build
   displayName: 'Build & Push Docker Image'
   jobs:
@@ -24,7 +29,7 @@ stages:
       fetchDepth: 0
       lfs: false
 
-    # Force switch to master branch (because YAML lives in main)
+    # Step 2 — Switch to master branch
     - script: |
         echo "Switching to master branch..."
         git fetch origin master
@@ -32,25 +37,59 @@ stages:
         git reset --hard origin/master
       displayName: 'Checkout master branch'
 
-    # Step 2 — Login to Azure
+    # Step 3 — Login to Azure (optional verification)
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip'
+        azureSubscription: 'mypip'      # your Azure service connection name
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "Checking Azure account..."
+          Write-Host "Logged in successfully to Azure."
           az account show
 
-    # Step 3 — Build & Push Docker Image
+    # Step 4 — Build and Push Docker Image
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'
-        repository: $(ACR_NAME).azurecr.io/$(IMAGE_NAME)
-        command: buildAndPush
-        dockerfile: Dockerfile
-        buildContext: .
+        containerRegistry: 'mypip1'     # ACR service connection name
+        repository: '$(IMAGE_NAME)'
+        command: 'buildAndPush'
+        Dockerfile: 'Dockerfile'
+        buildContext: '.'
         tags: |
           $(TAG)
+
+# ===========================================================
+# Stage 2 — Deploy to Azure Container Instance
+# ===========================================================
+- stage: Deploy
+  displayName: 'Deploy to Azure Container Instance'
+  dependsOn: Build
+  condition: succeeded()   # Only run if build succeeded
+  jobs:
+  - job: DeployJob
+    displayName: 'Deploy Docker Image to ACI'
+    steps:
+
+    - task: AzureCLI@2
+      displayName: 'Deploy to Azure Container Instance'
+      inputs:
+        azureSubscription: 'mypip'      # same Azure connection as above
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Starting deployment to ACI..."
+
+          az container create \
+            --name $(CONTAINER_NAME) \
+            --resource-group $(RESOURCE_GROUP) \
+            --image $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) \
+            --cpu 1 --memory 1 \
+            --registry-login-server $(ACR_NAME).azurecr.io \
+            --registry-username $(ACR_USERNAME) \
+            --registry-password $(ACR_PASSWORD) \
+            --dns-name-label backendappdemo$RANDOM \
+            --ports 80
+
+          echo "Deployment completed successfully!"
