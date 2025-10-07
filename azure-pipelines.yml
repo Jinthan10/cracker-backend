@@ -5,17 +5,11 @@ pool:
   name: Default  # self-hosted agent pool
 
 variables:
-  ACR_NAME: 'backendapli'             # Your Azure Container Registry name
-  IMAGE_NAME: 'backendapp'            # Image name
+  ACR_NAME: 'backendapli'      # Your ACR name
+  IMAGE_NAME: 'backendapp'
   TAG: 'latest'
-  ACI_NAME: 'backend-container'       # Azure Container Instance name
-  RESOURCE_GROUP: 'myresourcegroup'   # Your Azure resource group
-  LOCATION: 'eastus'                  # Azure region
 
 stages:
-# ────────────────
-# Stage 1: Build & Push Docker Image
-# ────────────────
 - stage: Build
   displayName: 'Build & Push Docker Image'
   jobs:
@@ -23,12 +17,20 @@ stages:
     displayName: 'Build and Push Docker Image'
     steps:
 
-    # Step 1 — Checkout code from main repo
+    # Step 1 — Checkout code from master branch
     - checkout: self
       clean: true
       persistCredentials: true
       fetchDepth: 0
       lfs: false
+
+    # Force switch to master branch (because YAML lives in main)
+    - script: |
+        echo "Switching to master branch..."
+        git fetch origin master
+        git checkout master
+        git reset --hard origin/master
+      displayName: 'Checkout master branch'
 
     # Step 2 — Login to Azure
     - task: AzureCLI@2
@@ -38,10 +40,10 @@ stages:
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "Verifying Azure login..."
+          Write-Host "Checking Azure account..."
           az account show
 
-    # Step 3 — Build & Push Docker Image to ACR
+    # Step 3 — Build & Push Docker Image
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
@@ -52,50 +54,3 @@ stages:
         buildContext: '.'
         tags: |
           $(TAG)
-
-# ────────────────
-# Stage 2: Deploy to Azure Container Instance
-# ────────────────
-- stage: Deploy
-  displayName: 'Deploy to Azure Container Instance'
-  dependsOn: Build
-  jobs:
-  - job: DeployJob
-    displayName: 'Deploy Image to ACI'
-    steps:
-
-    # Step 1 — Login to Azure again
-    - task: AzureCLI@2
-      displayName: 'Login to Azure'
-      inputs:
-        azureSubscription: 'mypip'
-        scriptType: 'ps'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          Write-Host "Logging into Azure..."
-          az account show
-
-    # Step 2 — Deploy the image to Azure Container Instance
-    - task: AzureCLI@2
-      displayName: 'Deploy to ACI'
-      inputs:
-        azureSubscription: 'mypip'
-        scriptType: 'ps'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          Write-Host "Deploying to Azure Container Instance..."
-          az container create `
-            --name $(ACI_NAME) `
-            --resource-group $(RESOURCE_GROUP) `
-            --image $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) `
-            --cpu 1 `
-            --memory 1 `
-            --registry-login-server $(ACR_NAME).azurecr.io `
-            --registry-username $(az acr credential show -n $(ACR_NAME) --query "username" -o tsv) `
-            --registry-password $(az acr credential show -n $(ACR_NAME) --query "passwords[0].value" -o tsv) `
-            --dns-name-label $(ACI_NAME)-dns `
-            --ports 80 `
-            --location $(LOCATION) `
-            --restart-policy Always
-
-          Write-Host "✅ Deployment completed successfully!"
