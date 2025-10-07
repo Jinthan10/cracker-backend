@@ -1,21 +1,21 @@
 trigger:
-- main  # still trigger when YAML changes in main
+- main  # Trigger when changes happen in main branch
 
 pool:
-  name: Default  # self-hosted agent pool
+  name: Default  # Using your self-hosted agent
 
 variables:
-  ACR_NAME: 'backendapli'          # Azure Container Registry name
-  IMAGE_NAME: 'backendapp'         # Docker image name
-  TAG: 'latest'                    # Image tag
-  ACI_NAME: 'cracker-backend'      # Azure Container Instance name
-  RESOURCE_GROUP: 'myresourcegroup' # Update with your actual resource group
-  LOCATION: 'eastus'               # Update with your region (e.g. eastus, centralindia)
+  ACR_NAME: 'backendapli'      # Your Azure Container Registry name
+  IMAGE_NAME: 'backendapp'     # Docker image name
+  TAG: 'latest'                # Tag for the image
+  RESOURCE_GROUP: 'demo'       # Your resource group name
+  CONTAINER_NAME: 'cracker-backend'  # Azure Container Instance name
+  LOCATION: 'eastus'           # Azure region
 
 stages:
-# ────────────────
-# Stage 1 — Build and Push Docker Image
-# ────────────────
+# --------------------------
+# Stage 1: Build & Push Image
+# --------------------------
 - stage: Build
   displayName: 'Build & Push Docker Image'
   jobs:
@@ -23,37 +23,26 @@ stages:
     displayName: 'Build and Push Docker Image'
     steps:
 
-    # Step 1 — Checkout code from master branch
+    # Step 1 — Checkout code
     - checkout: self
       clean: true
-      persistCredentials: true
-      fetchDepth: 0
-      lfs: false
 
-    # Step 2 — Switch to master branch (YAML lives in main)
-    - script: |
-        echo "Switching to master branch..."
-        git fetch origin master
-        git checkout master
-        git reset --hard origin/master
-      displayName: 'Checkout master branch'
-
-    # Step 3 — Login to Azure
+    # Step 2 — Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip'
+        azureSubscription: 'mypip-fixed'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "Checking Azure account..."
+          Write-Host "✅ Logged into Azure successfully."
           az account show
 
-    # Step 4 — Build & Push Docker Image to ACR
+    # Step 3 — Build and Push Docker Image to ACR
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'
+        containerRegistry: 'mypip1'  # Your ACR service connection name
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: 'buildAndPush'
         dockerfile: 'Dockerfile'
@@ -61,70 +50,52 @@ stages:
         tags: |
           $(TAG)
 
-# ────────────────
-# Stage 2 — Deploy Docker Image to Azure Container Instance
-# ────────────────
+# --------------------------
+# Stage 2: Deploy to ACI
+# --------------------------
 - stage: Deploy
   displayName: 'Deploy to Azure Container Instance'
   dependsOn: Build
-  condition: succeeded()
   jobs:
   - job: DeployJob
-    displayName: 'Deploy Docker Image from ACR to ACI'
+    displayName: 'Deploy ACR Image to ACI'
     steps:
-
-    # Step 1 — Login to Azure
     - task: AzureCLI@2
-      displayName: 'Login to Azure'
+      displayName: 'Deploy to ACI'
       inputs:
-        azureSubscription: 'mypip'
+        azureSubscription: 'mypip-fixed'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "Logging into Azure..."
-          az account show
+          Write-Host "🚀 Starting deployment to Azure Container Instance..."
 
-    # Step 2 — Deploy or update ACI container
-    - task: AzureCLI@2
-      displayName: 'Deploy to Azure Container Instance'
-      inputs:
-        azureSubscription: 'mypip'
-        scriptType: 'ps'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          Write-Host "Starting deployment to Azure Container Instance..."
+          # Variables
+          $rg = "$(RESOURCE_GROUP)"
+          $container = "$(CONTAINER_NAME)"
+          $image = "$(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG)"
+          $location = "$(LOCATION)"
 
-          # Check if container already exists
-          $exists = az container show `
-            --name $(ACI_NAME) `
-            --resource-group $(RESOURCE_GROUP) `
-            --query "name" `
-            -o tsv `
-            2>$null
+          # Check if container exists
+          $exists = az container show --name $container --resource-group $rg --query "name" -o tsv 2>$null
 
           if ($exists) {
-            Write-Host "Container $(ACI_NAME) already exists. Updating image..."
-            az container delete `
-              --name $(ACI_NAME) `
-              --resource-group $(RESOURCE_GROUP) `
-              --yes
-
-            Write-Host "Recreating container with new image..."
+              Write-Host "🔄 Container instance already exists. Updating with new image..."
+              az container delete --name $container --resource-group $rg --yes
+              Start-Sleep -Seconds 15
           }
 
-          # Deploy container from ACR image
+          Write-Host "🆕 Creating container instance $container..."
           az container create `
-            --name $(ACI_NAME) `
-            --resource-group $(RESOURCE_GROUP) `
-            --image $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(TAG) `
+            --resource-group $rg `
+            --name $container `
+            --image $image `
             --cpu 1 `
-            --memory 1 `
+            --memory 1.5 `
             --registry-login-server $(ACR_NAME).azurecr.io `
-            --registry-username $(az acr credential show -n $(ACR_NAME) --query "username" -o tsv) `
-            --registry-password $(az acr credential show -n $(ACR_NAME) --query "passwords[0].value" -o tsv) `
-            --dns-name-label $(ACI_NAME)-dns `
+            --registry-username $(ACR_NAME) `
+            --registry-password $(ACR_PASSWORD) `
+            --dns-name-label $container `
             --ports 80 `
-            --location $(LOCATION) `
-            --restart-policy Always
+            --location $location
 
-          Write-Host "✅ Deployment to $(ACI_NAME) completed successfully!"
+          Write-Host "✅ Deployment completed successfully!"
