@@ -1,23 +1,20 @@
 trigger:
-- main  # pipeline triggers when YAML in main is updated
+- main  # Trigger when changes happen in main branch
 
 pool:
-  name: Default  # your self-hosted Windows agent pool
+  name: Default  # Using your self-hosted agent
 
 variables:
-  ACR_NAME: 'backendapli'      # your ACR name
+  ACR_NAME: 'backendapli'      # Your Azure Container Registry name
   IMAGE_NAME: 'backendapp'     # Docker image name
-  TAG: 'latest'                # Docker image tag
-
-# Pull master branch explicitly
-resources:
-  repositories:
-    - repository: self
-      type: git
-      name: $(Build.Repository.Name)   # same repo as YAML
-      ref: refs/heads/master           # fetch master branch
+  TAG: 'latest'                # Tag for the image
+  RESOURCE_GROUP: 'demo'       # Your resource group name
+  LOCATION: 'eastus'           # Azure region
 
 stages:
+# --------------------------
+# Stage 1: Build & Push Image
+# --------------------------
 - stage: Build
   displayName: 'Build & Push Docker Image'
   jobs:
@@ -25,30 +22,29 @@ stages:
     displayName: 'Build and Push Docker Image'
     steps:
 
-    # Checkout master branch resource
+    # Step 1 — Checkout code
     - checkout: self
       clean: true
-      persistCredentials: true
 
-    # Step 1 — Login to Azure
+    # Step 2 — Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip-fixed'  # your Azure service connection
+        azureSubscription: 'mypip-fixed'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "Checking Azure account..."
+          Write-Host "✅ Logged into Azure successfully."
           az account show
 
-    # Step 2 — Build & Push Docker Image
+    # Step 3 — Build and Push Docker Image to ACR
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'                  # ACR service connection
+        containerRegistry: 'mypip1'  # Your ACR service connection name
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: 'buildAndPush'
-        dockerfile: 'cracker-backend/Dockerfile'    # path relative to repo root
-        buildContext: 'cracker-backend'             # folder containing Dockerfile
+        dockerfile: 'Dockerfile'
+        buildContext: '.'
         tags: |
           $(TAG)
