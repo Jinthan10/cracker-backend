@@ -1,21 +1,21 @@
 trigger:
-- main
+- main  # pipeline triggers when YAML in main is updated
 
 pool:
-  name: Default  # self-hosted agent
+  name: Default  # your self-hosted Windows agent pool
 
 variables:
-  ACR_NAME: 'backendapli'
-  IMAGE_NAME: 'backendapp'
-  TAG: 'latest'
+  ACR_NAME: 'backendapli'      # your ACR name
+  IMAGE_NAME: 'backendapp'     # Docker image name
+  TAG: 'latest'                # Docker image tag
 
-# Pull master branch as a resource
+# Pull master branch explicitly
 resources:
   repositories:
     - repository: self
       type: git
-      name: $(Build.Repository.Name)
-      ref: refs/heads/master  # explicitly fetch master branch
+      name: $(Build.Repository.Name)   # same repo as YAML
+      ref: refs/heads/master           # fetch master branch
 
 stages:
 - stage: Build
@@ -25,30 +25,30 @@ stages:
     displayName: 'Build and Push Docker Image'
     steps:
 
-    # Checkout the master branch resource
+    # Checkout master branch resource
     - checkout: self
       clean: true
       persistCredentials: true
 
-    # Login to Azure
+    # Step 1 — Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip-fixed'
+        azureSubscription: 'mypip-fixed'  # your Azure service connection
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
           Write-Host "Checking Azure account..."
           az account show
 
-    # Build & Push Docker Image
+    # Step 2 — Build & Push Docker Image
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'
+        containerRegistry: 'mypip1'                  # ACR service connection
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: 'buildAndPush'
-        dockerfile: 'cracker-backend/Dockerfile'
-        buildContext: 'cracker-backend'
+        dockerfile: 'cracker-backend/Dockerfile'    # path relative to repo root
+        buildContext: 'cracker-backend'             # folder containing Dockerfile
         tags: |
           $(TAG)
