@@ -1,50 +1,53 @@
 trigger:
-- main  # Trigger when changes happen in main branch
+- main
 
 pool:
-  name: Default  # Using your self-hosted agent
+  name: Default
 
 variables:
-  ACR_NAME: 'backendapli'      # Your Azure Container Registry name
-  IMAGE_NAME: 'backendapp'     # Docker image name
-  TAG: 'latest'                # Tag for the image
-  RESOURCE_GROUP: 'demo'       # Your resource group name
-  LOCATION: 'eastus'           # Azure region
+  ACR_NAME: 'backendapli'
+  IMAGE_NAME: 'backendapp'
+  TAG: 'latest'
+
+resources:
+  repositories:
+    - repository: self
+      type: git
+      name: $(Build.Repository.Name)   # same repo as YAML
+      ref: refs/heads/master           # fetch master branch
 
 stages:
-# --------------------------
-# Stage 1: Build & Push Image
-# --------------------------
 - stage: Build
-  displayName: 'Build & Push Docker Image'
+  displayName: Build & Push Docker Image
   jobs:
   - job: BuildJob
-    displayName: 'Build and Push Docker Image'
+    displayName: Build and Push Docker Image
     steps:
 
-    # Step 1 — Checkout code
+    # Checkout master branch code
     - checkout: self
       clean: true
+      persistCredentials: true
 
-    # Step 2 — Login to Azure
+    # Login to Azure
     - task: AzureCLI@2
-      displayName: 'Login to Azure'
+      displayName: Login to Azure
       inputs:
         azureSubscription: 'mypip-fixed'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "✅ Logged into Azure successfully."
+          Write-Host "Checking Azure account..."
           az account show
 
-    # Step 3 — Build and Push Docker Image to ACR
+    # Build & push Docker image
     - task: Docker@2
-      displayName: 'Build and Push Docker Image'
+      displayName: Build and Push Docker Image
       inputs:
-        containerRegistry: 'mypip1'  # Your ACR service connection name
+        containerRegistry: 'mypip1'
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
-        command: 'buildAndPush'
-        dockerfile: 'Dockerfile'
-        buildContext: '.'
+        command: buildAndPush
+        dockerfile: 'cracker-backend/Dockerfile'  # relative path
+        buildContext: 'cracker-backend'
         tags: |
           $(TAG)
