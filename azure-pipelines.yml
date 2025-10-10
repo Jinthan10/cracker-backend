@@ -1,5 +1,5 @@
 trigger:
-- main  # pipeline triggers on main branch changes
+- main
 
 pool:
   name: Default  # self-hosted agent
@@ -9,6 +9,14 @@ variables:
   IMAGE_NAME: 'backendapp'
   TAG: 'latest'
 
+# Pull master branch as a resource
+resources:
+  repositories:
+    - repository: self
+      type: git
+      name: $(Build.Repository.Name)
+      ref: refs/heads/master  # explicitly fetch master branch
+
 stages:
 - stage: Build
   displayName: 'Build & Push Docker Image'
@@ -17,19 +25,12 @@ stages:
     displayName: 'Build and Push Docker Image'
     steps:
 
-    # Step 0 — Checkout master branch explicitly
+    # Checkout the master branch resource
     - checkout: self
       clean: true
       persistCredentials: true
 
-    - script: |
-        echo "Switching to master branch..."
-        git fetch origin master
-        git checkout master
-        git reset --hard origin/master
-      displayName: 'Checkout master branch'
-
-    # Step 1 — Login to Azure
+    # Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
@@ -40,14 +41,14 @@ stages:
           Write-Host "Checking Azure account..."
           az account show
 
-    # Step 2 — Build & Push Docker Image
+    # Build & Push Docker Image
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'  # Azure container registry service connection
+        containerRegistry: 'mypip1'
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: 'buildAndPush'
-        dockerfile: 'cracker-backend/Dockerfile'  # Dockerfile path in master branch
+        dockerfile: 'cracker-backend/Dockerfile'
         buildContext: 'cracker-backend'
         tags: |
           $(TAG)
