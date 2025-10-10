@@ -1,45 +1,53 @@
 trigger:
-- main  # Trigger when code changes in main branch
+- main  # pipeline triggers on main branch changes
 
 pool:
-  name: Default  # Your self-hosted agent pool
+  name: Default  # self-hosted agent
 
 variables:
-  ACR_NAME: 'backendapli'          # Azure Container Registry name
-  IMAGE_NAME: 'backendapp'         # Docker image name
-  TAG: 'latest'                    # Docker tag
+  ACR_NAME: 'backendapli'
+  IMAGE_NAME: 'backendapp'
+  TAG: 'latest'
 
 stages:
 - stage: Build
   displayName: 'Build & Push Docker Image'
   jobs:
   - job: BuildJob
-    displayName: 'Build and Push Docker Image to ACR'
+    displayName: 'Build and Push Docker Image'
     steps:
-    # Step 1 — Checkout code
+
+    # Step 0 — Checkout master branch explicitly
     - checkout: self
       clean: true
       persistCredentials: true
 
-    # Step 2 — Login to Azure
+    - script: |
+        echo "Switching to master branch..."
+        git fetch origin master
+        git checkout master
+        git reset --hard origin/master
+      displayName: 'Checkout master branch'
+
+    # Step 1 — Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip-fixed'   # ✅ your correct service connection name
+        azureSubscription: 'mypip-fixed'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "✅ Logged into Azure account successfully."
+          Write-Host "Checking Azure account..."
           az account show
 
-    # Step 3 — Build & Push Docker Image to ACR
+    # Step 2 — Build & Push Docker Image
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'                  # ✅ ACR service connection name
+        containerRegistry: 'mypip1'  # Azure container registry service connection
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: 'buildAndPush'
-        dockerfile: 'cracker-backend/Dockerfile'     # ✅ correct path
-        buildContext: 'cracker-backend'              # ✅ build context folder
+        dockerfile: 'cracker-backend/Dockerfile'  # Dockerfile path in master branch
+        buildContext: 'cracker-backend'
         tags: |
           $(TAG)
