@@ -1,54 +1,35 @@
-trigger:
-- main  # Change to your default branch
+steps:
+# 1️⃣ Checkout correct branch
+- checkout: self
+  clean: true
+  persistCredentials: true
 
-pool:
-  name: Default  # Use self-hosted or Microsoft-hosted agent
+- script: |
+    git fetch origin master
+    git checkout master
+    git reset --hard origin/master
+  displayName: 'Checkout master branch'
 
-variables:
-  # Docker / ACR
-  ACR_NAME: 'backendapli'
-  IMAGE_NAME: 'backendapp'
-  TAG: 'latest'
+# 2️⃣ SonarQube scan (Docker)
+- powershell: |
+    docker run --rm `
+      -v "$(Build.SourcesDirectory):/usr/src" `
+      sonarsource/sonar-scanner-cli `
+      -D"sonar.projectKey=$(SONAR_PROJECT_KEY)" `
+      -D"sonar.projectName=$(SONAR_PROJECT_NAME)" `
+      -D"sonar.sources=/usr/src" `
+      -D"sonar.host.url=$(SONAR_HOST_URL)" `
+      -D"sonar.login=$(SONAR_TOKEN)"
+  displayName: 'Run SonarQube Scan via Docker'
 
-  # SonarQube
-  SONAR_PROJECT_KEY: 'backendapp'
-  SONAR_PROJECT_NAME: 'BackendApp'
-  SONAR_HOST_URL: 'http://192.168.1.12:9001'  # Your SonarQube container IP
-  SONAR_TOKEN: 'squ_4e00ff1c3c5dc6e55cfe450fe4427ed6df80d4e0' # Use secret variable in production
-
-stages:
-- stage: BuildAndScan
-  displayName: "Build Docker Image & SonarQube Scan"
-  jobs:
-  - job: BuildJob
-    displayName: "Build and Scan Backend"
-    steps:
-
-    # 1️⃣ Checkout code
-    - checkout: self
-      clean: true
-
-    # 2️⃣ Run SonarQube Scanner in Docker
-    - powershell: |
-        echo "Starting SonarQube scan..."
-        docker run --rm `
-          -v "$(Build.SourcesDirectory):/usr/src" `
-          sonarsource/sonar-scanner-cli `
-          -D"sonar.projectKey=$(SONAR_PROJECT_KEY)" `
-          -D"sonar.projectName=$(SONAR_PROJECT_NAME)" `
-          -D"sonar.sources=/usr/src" `
-          -D"sonar.host.url=$(SONAR_HOST_URL)" `
-          -D"sonar.login=$(SONAR_TOKEN)"
-      displayName: 'Run SonarQube Scan via Docker'
-
-    # 3️⃣ Build & Push Docker Image to ACR
-    - task: Docker@2
-      displayName: "Build & Push Docker Image"
-      inputs:
-        containerRegistry: 'mypip1'  # Your Azure service connection for ACR
-        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
-        command: buildAndPush
-        dockerfile: 'cracker-backend/Dockerfile'   # Adjust if your Dockerfile is elsewhere
-        buildContext: 'cracker-backend'            # Adjust path if needed
-        tags: |
-          $(TAG)
+# 3️⃣ Docker build & push
+- task: Docker@2
+  displayName: "Build & Push Docker Image"
+  inputs:
+    containerRegistry: 'mypip1'
+    repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
+    command: buildAndPush
+    dockerfile: 'cracker-backend/Dockerfile'
+    buildContext: 'cracker-backend'
+    tags: |
+      $(TAG)
