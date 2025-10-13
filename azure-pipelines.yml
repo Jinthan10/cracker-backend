@@ -1,13 +1,17 @@
 trigger:
-  - main   # Trigger pipeline when main branch changes
+  - main   # Run pipeline when main branch changes
 
 pool:
-  name: Default  # Your self-hosted agent pool
+  name: Default  # Your self-hosted agent pool (must have Docker installed)
 
 variables:
   ACR_NAME: 'backendapli'      # Azure Container Registry name
   IMAGE_NAME: 'backendapp'     # Docker image name
   TAG: 'latest'                # Docker image tag
+  SONAR_HOST_URL: 'http://localhost:9001'  # SonarQube container URL
+  SONAR_PROJECT_KEY: 'backendapp'
+  SONAR_PROJECT_NAME: 'Backend App'
+  SONAR_TOKEN: $(SONAR_TOKEN)  # Pipeline variable (secret) with Sonar token
 
 stages:
 - stage: ScanAndBuild
@@ -22,23 +26,17 @@ stages:
       clean: true
       persistCredentials: true
 
-    # Step 1 — Run SonarQube analysis
-    - task: SonarQubePrepare@5
-      inputs:
-        SonarQube: 'SonarQubeLocal'    # Your service connection name
-        scannerMode: 'CLI'
-        configMode: 'manual'
-        cliProjectKey: 'backendapp'
-        cliProjectName: 'Backend App'
-        extraProperties: |
-          sonar.sources=.
-          sonar.host.url=http://localhost:9001
-
-    - task: SonarQubeAnalyze@5
-
-    - task: SonarQubePublish@5
-      inputs:
-        pollingTimeoutSec: '300'
+    # Step 1 — Run SonarQube scan using Docker
+    - script: |
+        docker run --rm \
+          -v $(Build.SourcesDirectory):/usr/src \
+          sonarsource/sonar-scanner-cli \
+          -Dsonar.projectKey=$(SONAR_PROJECT_KEY) \
+          -Dsonar.projectName="$(SONAR_PROJECT_NAME)" \
+          -Dsonar.sources=/usr/src \
+          -Dsonar.host.url=$(SONAR_HOST_URL) \
+          -Dsonar.login=$(SONAR_TOKEN)
+      displayName: 'Run SonarQube Scan via Docker'
 
     # Step 2 — Login to Azure
     - task: AzureCLI@2
@@ -55,10 +53,10 @@ stages:
     - task: Docker@2
       displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'                        # ACR service connection
+        containerRegistry: 'mypip1'                        # Your ACR service connection
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)' # Full repository name
         command: buildAndPush
         dockerfile: 'cracker-backend/Dockerfile'           # Dockerfile path
-        buildContext: 'cracker-backend'                    # Build context folder
+        buildContext: 'cracker-backend'                    # Context folder
         tags: |
           $(TAG)
