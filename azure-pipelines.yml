@@ -1,74 +1,64 @@
 trigger:
-- main   # pipeline triggers when YAML changes in main branch
+  - main   # Trigger pipeline when main branch changes
 
 pool:
-  name: Default  # your self-hosted or Microsoft-hosted agent pool
+  name: Default  # Your self-hosted agent pool
 
 variables:
   ACR_NAME: 'backendapli'      # Azure Container Registry name
   IMAGE_NAME: 'backendapp'     # Docker image name
   TAG: 'latest'                # Docker image tag
-  SONAR_PROJECT_KEY: 'backendapp'
-  SONAR_ORG: 'myorg'                 # optional for SonarCloud
-  SONAR_HOST_URL: 'https://sonarcloud.io'  # or your SonarQube URL
-  SONAR_TOKEN: '$(SONAR_TOKEN)'     # secret in Azure DevOps Library
 
 stages:
-
-# ---------------- STAGE 1: SONARQUBE SCAN ----------------
-- stage: SonarQubeScan
-  displayName: 'SonarQube Code Analysis'
+- stage: ScanAndBuild
+  displayName: 'SonarQube Scan & Docker Build'
   jobs:
-  - job: SonarScanJob
-    displayName: 'Run SonarQube Analysis'
+  - job: ScanBuildJob
+    displayName: 'Run Sonar Scan and Build Docker Image'
     steps:
+
+    # Step 0 — Checkout code
     - checkout: self
       clean: true
       persistCredentials: true
 
-    # Step 1 — Install Sonar Scanner
-    - script: |
-        echo Installing Sonar Scanner...
-        npm install -g sonar-scanner
-      displayName: 'Install Sonar Scanner'
+    # Step 1 — Run SonarQube analysis
+    - task: SonarQubePrepare@5
+      inputs:
+        SonarQube: 'SonarQubeLocal'    # Your service connection name
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: 'backendapp'
+        cliProjectName: 'Backend App'
+        extraProperties: |
+          sonar.sources=.
+          sonar.host.url=http://localhost:9001
 
-    # Step 2 — Run SonarQube Scan (✅ single line, no backslashes)
-    - script: |
-        echo Running SonarQube scan...
-        sonar-scanner -Dsonar.projectKey=$(SONAR_PROJECT_KEY) -Dsonar.organization=$(SONAR_ORG) -Dsonar.sources=cracker-backend -Dsonar.host.url=$(SONAR_HOST_URL) -Dsonar.login=$(SONAR_TOKEN)
-      displayName: 'Run SonarQube Scan'
+    - task: SonarQubeAnalyze@5
 
-# ---------------- STAGE 2: BUILD & PUSH DOCKER IMAGE ----------------
-- stage: BuildAndPush
-  displayName: 'Build & Push Docker Image'
-  dependsOn: SonarQubeScan
-  jobs:
-  - job: BuildJob
-    displayName: 'Build and Push Docker Image'
-    steps:
-    - checkout: self
-      clean: true
-      persistCredentials: true
+    - task: SonarQubePublish@5
+      inputs:
+        pollingTimeoutSec: '300'
 
-    # Step 1 — Azure Login
+    # Step 2 — Login to Azure
     - task: AzureCLI@2
       displayName: 'Login to Azure'
       inputs:
-        azureSubscription: 'mypip-fixed'  # your Azure service connection
+        azureSubscription: 'mypip-fixed'  # Your Azure service connection
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          Write-Host "Verifying Azure login..."
+          Write-Host "Checking Azure account..."
           az account show
 
-    # Step 2 — Build and Push Docker image to ACR
+    # Step 3 — Build & Push Docker Image
     - task: Docker@2
-      displayName: 'Build and Push Docker Image to ACR'
+      displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: 'mypip1'                        # Docker/ACR service connection
-        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)' # Full repo name
+        containerRegistry: 'mypip1'                        # ACR service connection
+        repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)' # Full repository name
         command: buildAndPush
-        dockerfile: 'cracker-backend/Dockerfile'           # Path to Dockerfile
-        buildContext: 'cracker-backend'                    # Folder containing Dockerfile
+        dockerfile: 'cracker-backend/Dockerfile'           # Dockerfile path
+        buildContext: 'cracker-backend'                    # Build context folder
         tags: |
           $(TAG)
