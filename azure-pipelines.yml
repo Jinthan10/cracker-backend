@@ -1,47 +1,51 @@
 trigger:
-- main  # or your default branch name
+- main  # or your default branch
 
 pool:
-  name: Default  # use your agent pool name
+  name: Default  # your self-hosted or Microsoft-hosted agent
 
 variables:
-  ACR_NAME: 'backendapli'          # your Azure Container Registry name
-  IMAGE_NAME: 'backendapp'         # your app image name
+  # Docker / ACR
+  ACR_NAME: 'backendapli'
+  IMAGE_NAME: 'backendapp'
   TAG: 'latest'
+
+  # SonarQube
   SONAR_PROJECT_KEY: 'backendapp'
   SONAR_PROJECT_NAME: 'BackendApp'
-  SONAR_HOST_URL: 'http://192.168.1.12:9001'   # your SonarQube container IP:port
-  SONAR_TOKEN: 'squ_4e00ff1c3c5dc6e55cfe450fe4427ed6df80d4e0'  # your generated token
+  SONAR_HOST_URL: 'http://192.168.1.12:9001'  # SonarQube container IP
+  SONAR_TOKEN: 'squ_4e00ff1c3c5dc6e55cfe450fe4427ed6df80d4e0' # keep secret in production
 
 stages:
 - stage: BuildAndScan
-  displayName: "Build Docker Image and Run SonarQube Scan"
+  displayName: "Build Docker Image & SonarQube Scan"
   jobs:
   - job: BuildJob
-    displayName: "Build and Scan Code"
+    displayName: "Build and Scan Backend"
     steps:
 
-    # Step 1 — Checkout code
+    # 1️⃣ Checkout code from GitHub
     - checkout: self
+      clean: true
 
-    # Step 2 — Run SonarQube Scan inside Docker
+    # 2️⃣ Run SonarQube Scanner inside Docker
     - powershell: |
-        Write-Host "Starting SonarQube scan..."
+        echo "Starting SonarQube scan..."
         docker run --rm `
           -v "$(Build.SourcesDirectory):/usr/src" `
           sonarsource/sonar-scanner-cli `
-          -Dsonar.projectKey=$(SONAR_PROJECT_KEY) `
-          -Dsonar.projectName=$(SONAR_PROJECT_NAME) `
-          -Dsonar.sources=/usr/src `
-          -Dsonar.host.url=$(SONAR_HOST_URL) `
-          -Dsonar.login=$(SONAR_TOKEN)
-      displayName: "Run SonarQube Scan via Docker"
+          -D"sonar.projectKey=$(SONAR_PROJECT_KEY)" `
+          -D"sonar.projectName=$(SONAR_PROJECT_NAME)" `
+          -D"sonar.sources=/usr/src" `
+          -D"sonar.host.url=$(SONAR_HOST_URL)" `
+          -D"sonar.login=$(SONAR_TOKEN)"
+      displayName: 'Run SonarQube Scan via Docker'
 
-    # Step 3 — Build & Push Docker Image (optional)
+    # 3️⃣ Build & Push Docker Image to Azure Container Registry
     - task: Docker@2
-      displayName: "Build and Push Docker Image to ACR"
+      displayName: "Build & Push Docker Image"
       inputs:
-        containerRegistry: 'mypip1'   # your ACR service connection
+        containerRegistry: 'mypip1'  # your ACR service connection
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: buildAndPush
         dockerfile: 'cracker-backend/Dockerfile'
