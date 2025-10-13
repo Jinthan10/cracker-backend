@@ -1,8 +1,8 @@
 trigger:
-- main  # or your default branch
+- main  # Change to your default branch
 
 pool:
-  name: Default  # your self-hosted or Microsoft-hosted agent
+  name: Default  # Use self-hosted or Microsoft-hosted agent
 
 variables:
   # Docker / ACR
@@ -13,8 +13,8 @@ variables:
   # SonarQube
   SONAR_PROJECT_KEY: 'backendapp'
   SONAR_PROJECT_NAME: 'BackendApp'
-  SONAR_HOST_URL: 'http://192.168.1.12:9001'  # SonarQube container IP
-  SONAR_TOKEN: 'squ_4e00ff1c3c5dc6e55cfe450fe4427ed6df80d4e0' # keep secret in production
+  SONAR_HOST_URL: 'http://192.168.1.12:9001'  # Your SonarQube container IP
+  SONAR_TOKEN: 'squ_4e00ff1c3c5dc6e55cfe450fe4427ed6df80d4e0' # Use secret variable in production
 
 stages:
 - stage: BuildAndScan
@@ -24,11 +24,11 @@ stages:
     displayName: "Build and Scan Backend"
     steps:
 
-    # 1️⃣ Checkout code from GitHub
+    # 1️⃣ Checkout code
     - checkout: self
       clean: true
 
-    # 2️⃣ Run SonarQube Scanner inside Docker
+    # 2️⃣ Run SonarQube Scanner in Docker
     - powershell: |
         echo "Starting SonarQube scan..."
         docker run --rm `
@@ -41,14 +41,14 @@ stages:
           -D"sonar.login=$(SONAR_TOKEN)"
       displayName: 'Run SonarQube Scan via Docker'
 
-    # 3️⃣ Build & Push Docker Image to Azure Container Registry
+    # 3️⃣ Build & Push Docker Image to ACR
     - task: Docker@2
       displayName: "Build & Push Docker Image"
       inputs:
-        containerRegistry: 'mypip1'  # your ACR service connection
+        containerRegistry: 'mypip1'  # Your Azure service connection for ACR
         repository: '$(ACR_NAME).azurecr.io/$(IMAGE_NAME)'
         command: buildAndPush
-        dockerfile: 'cracker-backend/Dockerfile'
-        buildContext: 'cracker-backend'
+        dockerfile: 'cracker-backend/Dockerfile'   # Adjust if your Dockerfile is elsewhere
+        buildContext: 'cracker-backend'            # Adjust path if needed
         tags: |
           $(TAG)
