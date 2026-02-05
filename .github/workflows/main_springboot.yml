@@ -23,7 +23,6 @@ jobs:
 
       # ⭐ FIXED STEP
       - name: Build with Maven
-        working-directory: ./cracker-backend
         run: mvn clean package -DskipTests
 
       # ⭐ FIXED STEP
@@ -31,7 +30,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: java-app
-          path: '${{ github.workspace }}/cracker-backend/target/*.jar'
+          path: '${{ github.workspace }}/target/*.jar'
 
   deploy:
     runs-on: ubuntu-latest
@@ -59,3 +58,4 @@ jobs:
           app-name: 'springboot'
           slot-name: 'Production'
           package: '*.jar'
+
