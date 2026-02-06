@@ -51,9 +51,22 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_B39DDF3122B3409EA9929EFD4D5954E2 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3BF8389CD3574BFFB7A9E75D77ED6903 }}
 
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure Web App (STAGING SLOT)
         uses: azure/webapps-deploy@v3
         with:
           app-name: spring-web
           slot-name: staging
           package: '*.jar'
+
+      # 🔥 Install Azure CLI webapp extension
+      - name: Install webapp extension
+        run: az extension add --name webapp --upgrade
+
+      # 🚀 Enable AUTO SWAP (Blue → Green automation)
+      - name: Enable Auto Swap for staging slot
+        run: |
+          az webapp deployment slot auto-swap \
+            --resource-group YOUR_RESOURCE_GROUP_NAME \
+            --name spring-web \
+            --slot staging \
+            --auto-swap-slot production
