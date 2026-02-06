@@ -66,7 +66,7 @@ jobs:
       - name: Enable Auto Swap for staging slot
         run: |
           az webapp deployment slot auto-swap \
-            --resource-group YOUR_RESOURCE_GROUP_NAME \
+            --resource-group demo \
             --name spring-web \
             --slot staging \
             --auto-swap-slot production
