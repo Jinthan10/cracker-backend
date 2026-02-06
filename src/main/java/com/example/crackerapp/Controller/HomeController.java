@@ -14,6 +14,6 @@ public class HomeController {
     @GetMapping
     public String home() {
 
-        return "house";
+        return "villa";
     }
 }
