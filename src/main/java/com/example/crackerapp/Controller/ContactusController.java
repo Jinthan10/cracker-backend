@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 
 @RestController
-@CrossOrigin
+@CrossOrigin(origins = "https://fronty.z29.web.core.windows.net")
+// @CrossOrigin
 
 public class ContactusController {
 
