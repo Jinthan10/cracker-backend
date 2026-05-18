@@ -3,15 +3,12 @@ package com.example.crackerapp.Controller;
 import com.example.crackerapp.Model.Contactus;
 import com.example.crackerapp.Service.ContactusService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 
 @RestController
 @CrossOrigin
-
 public class ContactusController {
 
     @Autowired
@@ -22,4 +19,9 @@ public class ContactusController {
         return contactusService.send(contactus);
     }
 
+    // 🔥 ADD THIS METHOD
+    @GetMapping("/contactus")
+    public List<Contactus> getAllContacts(){
+        return contactusService.getAllContacts();
+    }
 }
